@@ -1,0 +1,467 @@
+{
+  "name": "Smart Restaurant Order-taking Assistant",
+  "nodes": [
+    {
+      "parameters": {
+        "text": "={{ $json.query }}",
+        "schemaType": "fromJson",
+        "jsonSchemaExample": "{\n  \"name\": \"Information Extractor\",\n  \"type\": \"n8n-nodes-base.informationExtractor\",\n  \"parameters\": {\n    \"extract\": [\n      {\n        \"name\": \"items\",\n        \"pattern\": \"(latte|coffee|tea|cappuccino)\"\n      },\n      {\n        \"name\": \"quantity\",\n        \"pattern\": \"\\\\d+\"\n      },\n      {\n        \"name\": \"table\",\n        \"pattern\": \"table number (\\\\d+)\"\n      }\n    ]\n  }\n}\n",
+        "options": {}
+      },
+      "id": "77051ab7-7998-4d63-9b51-d9ccc3e365d6",
+      "name": "Information Extractor",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "position": [
+        -144,
+        496
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "id": "b8e26a51-4ab1-4d06-ba00-761b8281d293",
+      "name": "OpenAI Chat Model1",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "position": [
+        -128,
+        688
+      ],
+      "typeVersion": 1.2,
+      "credentials": {
+        "openAiApi": {
+          "id": "IFuS0OMBdaTai4J9",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "8a5dda0c-a567-4305-83a3-68d6fb573dd3",
+              "operator": {
+                "type": "array",
+                "operation": "empty",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.output.parameters.extract }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5f18f98a-8163-46b9-8b9d-42cd128a1ea6",
+      "name": "If",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        176,
+        496
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "# Input from n8n\ninput_data = items\n\n# Get the extracted list\nextract_data = input_data[0].get('json', {}).get('output', {}).get('parameters', {}).get('extract', [])\n\n# Prepare variables\norder_items = []\ntable_number = None\n\n# Separate entries by type\nitems_list = []\nquantities = []\n\n# Parse all entries\nfor entry in extract_data:\n    if entry['name'] == 'table number':\n        table_number = entry['pattern']\n    elif entry['name'] == 'item':\n        items_list.append(entry['pattern'])\n    elif entry['name'] == 'quantity':\n        quantities.append(int(entry['pattern']))\n\n# Pair items and quantities\nfor i in range(len(items_list)):\n    item_data = {\n        'item': items_list[i],\n        'quantity': quantities[i] if i < len(quantities) else None,\n        'table': table_number\n    }\n    order_items.append(item_data)\n\n# Set final output\noutput = [{'json': item} for item in order_items]\n\nreturn output"
+      },
+      "id": "1bf4da6a-951f-4382-b67d-8ff60955e63e",
+      "name": "Code",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        368,
+        512
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "82a6dd96-1fc5-4ccd-83a3-66213a5aa3a4",
+      "name": "Loop Over Items",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [
+        576,
+        512
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {},
+      "id": "e2b7d5e2-2cd4-44b8-9097-fa9fbaea4819",
+      "name": "Replace Me",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        784,
+        672
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {},
+      "id": "35cc3a16-c69c-45d5-a1a1-51d0750bb9a9",
+      "name": "No Operation, do nothing",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        368,
+        368
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "c8eb2901-6c09-4005-b78a-65eb549b4477",
+      "name": "Triggered on Restaurant Chat workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        -368,
+        496
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "public": true,
+        "options": {}
+      },
+      "id": "56c01b79-e186-49b8-acfb-1f42f63503b3",
+      "name": "When chat message received",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "position": [
+        -368,
+        864
+      ],
+      "webhookId": "d931c4a7-02f5-4359-918f-7ad3fae7b144",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "Role:\nYou are a polite and efficient restaurant assistant.\n\nObjective:\nTake customer orders, verify details, correct mistakes, and confirm the order.\n\n1. Greeting & Asking for the Order\nIf the customer greets you (e.g., “Hello”, “Hi”, “Good evening”), respond with:\n\nHello! How can I assist you today? What would you like to order?\n\n2. Order Parsing & Understanding\nAccept orders in flexible formats, for example:\n\n1 latte, 2 coffee, table number 5\n\nlatte 2, pepsi 1, table 3\n\n1 cappuccino\n\n1 tea table no 4\n\nYour goal is to extract:\n\nItem names (e.g., latte, coffee, chocolate, tea, pepsi)\n\nQuantities (must be numeric)\n\nTable number (must be numeric)\n\n3. Verifying & Handling Missing or Incorrect Information\nFor each item:\n\nIf item name is missing:\n\nSorry, the item name is missing. What would you like to order?\n\nIf quantity is missing:\n\nHow many [item] would you like?\n\nIf table number is missing:\n\nCould you please provide a table number?\n\nIf there is a spelling mistake in the item name, suggest a correction:\n\nDid you mean chocolate instead of chocolat? Please confirm.\n\nUse fuzzy matching to detect common typos and variations.\n\n4. Final Confirmation\nOnce all details are collected, present the summary in this format:\n\nHere’s your order summary:\n1 latte\n2 coffee\nTable number: 5\nShall I confirm this order?\n\n5. On Confirmation — Use the Tool\nWhen the user confirms, use the ConfirmOrder tool to send the final confirmation message as plain text:\n\nThank you for confirming! Your order will be prepared shortly. Enjoy your time with us!\n\nOrder details are following:\nitem quantity\nlatte 1\ncoffee 2\n\nAdded to table number 5\n\nImportant:\n\nAlways extract numeric values for quantities and table numbers, even if they appear at the start or end of the text.\n\nIf there is any uncertainty, confirm with the user before proceeding."
+        }
+      },
+      "id": "431c739c-e81d-4f9b-beca-810d699cdcd1",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [
+        -112,
+        864
+      ],
+      "typeVersion": 1.9
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {
+          "responseFormat": "text"
+        }
+      },
+      "id": "a193c16c-1d71-4d24-a0ca-acf4eee1ceb6",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "position": [
+        -240,
+        1136
+      ],
+      "typeVersion": 1.2,
+      "credentials": {
+        "openAiApi": {
+          "id": "IFuS0OMBdaTai4J9",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "This tool sends the text output generated by the AI Agent node to another n8n workflow for additional handling or automation.",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "wgaJ0eJQtYA8oKSC",
+          "cachedResultName": "Restaurant POS workflow"
+        },
+        "workflowInputs": {
+          "value": {},
+          "schema": [],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "021ac76e-2c17-4d17-9ce0-0b9d59625c74",
+      "name": "Call n8n Workflow Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "position": [
+        144,
+        1136
+      ],
+      "notesInFlow": false,
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {},
+      "id": "3d465397-c84f-440a-9d4b-8f7f1d77d88e",
+      "name": "Last 5 conversations Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "position": [
+        -80,
+        1168
+      ],
+      "typeVersion": 1.3
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://docs.google.com/spreadsheets/d/16fXaxEcfnq_-oif9tp94-3uTeHSFWoSnuBPNTljuW-k/edit?usp=sharing"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gid=0",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16fXaxEcfnq_-oif9tp94-3uTeHSFWoSnuBPNTljuW-k/edit#gid=0",
+          "cachedResultName": "Order log"
+        },
+        "columns": {
+          "value": {
+            "Item": "={{ $json.item }}",
+            "Quantity": "={{ $json.quantity }}",
+            "Table No": "={{ $json.table }}",
+            "Timestamp": "={{ $now }}"
+          },
+          "schema": [
+            {
+              "id": "Timestamp",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Timestamp",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Table No",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Table No",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Item",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Item",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Quantity",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Quantity",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "4785d5cc-9a67-4c3c-a419-0a1baf1adb93",
+      "name": "Append row in sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [
+        784,
+        496
+      ],
+      "typeVersion": 4.5,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "vrTQ4pTcxXk1PIEU",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "If": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replace Me": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Replace Me",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Information Extractor",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Information Extractor": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call n8n Workflow Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Last 5 conversations Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Triggered on Restaurant Chat workflow": {
+      "main": [
+        [
+          {
+            "node": "Information Extractor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "3af426bf-4f6e-4ec5-a400-764b826e98bb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4275106c8fd02c2533edab3f7741b7db420af0691c825fa5d46bbabd00ca51b7"
+  },
+  "id": "4P9WNOAC8wo18N7E",
+  "tags": []
+}
